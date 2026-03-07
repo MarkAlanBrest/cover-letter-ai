@@ -52,11 +52,12 @@ const buffer = doc.getZip().generate({
   type: "uint8array",
 });
 
-return new Response(new Blob([buffer]), {
+const nodeBuffer = Buffer.from(buffer);
+
+return new Response(nodeBuffer, {
   headers: {
     "Content-Type":
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "Content-Disposition": "attachment; filename=cover-letter.docx",
   },
 });
-}
