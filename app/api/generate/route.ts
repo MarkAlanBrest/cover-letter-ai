@@ -15,9 +15,10 @@ async function extractResumeText(file: File): Promise<string> {
   // ---------- PDF ----------
 if (fileName.endsWith(".pdf")) {
 
-  const pdfParse = await import("pdf-parse");
+const pdfModule = await import("pdf-parse");
+const pdfParse = (pdfModule as any).default || pdfModule;
 
-  const data = await pdfParse(new Uint8Array(bytes));
+const data = await pdfParse(new Uint8Array(bytes));
 
   return data.text || "";
 }
@@ -126,9 +127,7 @@ Do NOT include:
       input: prompt,
     });
 
-    const coverLetter =
-      response.output?.[0]?.content?.[0]?.text?.trim() ||
-      response.output_text?.trim();
+    const coverLetter = response.output_text?.trim();
 
     if (!coverLetter) {
       return NextResponse.json(
