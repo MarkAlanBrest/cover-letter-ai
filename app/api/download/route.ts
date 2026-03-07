@@ -7,7 +7,13 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
 
-  const { coverLetter, name, email, phone, company } = await req.json();
+  const body = await req.json();
+
+  const coverLetter = body.coverLetter || "";
+  const name = body.name || "";
+  const email = body.email || "";
+  const phone = body.phone || "";
+  const company = body.company || "";
 
   const templatePath = path.join(
     process.cwd(),
@@ -34,22 +40,25 @@ export async function POST(req: Request) {
     email: email,
     phone: phone,
     companyName: company,
-    date: new Date().toLocaleDateString(),
+    date: new Date().toLocaleDateString("en-US", {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+}),
     letterBody: cleanLetter,
   });
 
-  const buffer = doc.getZip().generate({
-    type: "uint8array",
-  });
+const buffer = doc.getZip().generate({
+  type: "uint8array",
+});
 
-  const nodeBuffer = Buffer.from(buffer);
+const nodeBuffer = Buffer.from(buffer);
 
-  return new Response(nodeBuffer, {
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": "attachment; filename=cover-letter.docx",
-    },
-  });
-
+return new Response(nodeBuffer, {
+  headers: {
+    "Content-Type":
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "Content-Disposition": "attachment; filename=cover-letter.docx",
+  },
+});
 }
