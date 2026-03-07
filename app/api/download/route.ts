@@ -52,7 +52,7 @@ const buffer = doc.getZip().generate({
   type: "uint8array",
 });
 
-return new Response(buffer.buffer, {
+return new Response(new Blob([buffer]), {
   headers: {
     "Content-Type":
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
