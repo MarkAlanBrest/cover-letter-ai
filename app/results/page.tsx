@@ -76,10 +76,10 @@ export default function ResultsPage() {
   }
 
   const templates = [
-    { name: "TemplateA", image: "/templates/templateA.png" },
-    { name: "TemplateB", image: "/templates/templateB.png" },
-    { name: "TemplateC", image: "/templates/templateC.png" },
-    { name: "TemplateD", image: "/templates/templateD.png" },
+    { name: "TemplateA", image: "/templates/a.png" },
+    { name: "TemplateB", image: "/templates/b.png" },
+    { name: "TemplateC", image: "/templates/c.png" },
+    { name: "TemplateD", image: "/templates/d.png" },
   ];
 
   return (
@@ -89,9 +89,13 @@ export default function ResultsPage() {
           Your Cover Letter
         </h1>
 
-        <div className="border rounded p-6 whitespace-pre-wrap text-gray-800 leading-7 mb-8">
-          {coverLetter || "No cover letter generated."}
-        </div>
+        {/* EDITABLE COVER LETTER */}
+
+        <textarea
+          value={coverLetter}
+          onChange={(e) => setCoverLetter(e.target.value)}
+          className="border rounded p-6 w-full h-96 text-gray-800 leading-7 mb-8 resize-none"
+        />
 
         {/* AI Responsibility Notice */}
 
