@@ -15,9 +15,9 @@ async function extractResumeText(file: File): Promise<string> {
   // ---------- PDF ----------
 if (fileName.endsWith(".pdf")) {
 
-const pdfParse = (await import("pdf-parse")).pdf;
+  const pdfParse = await import("pdf-parse");
 
-const data = await pdfParse(new Uint8Array(bytes));
+  const data = await pdfParse(new Uint8Array(bytes));
 
   return data.text || "";
 }
