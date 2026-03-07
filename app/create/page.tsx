@@ -12,14 +12,22 @@ export default function CreatePage() {
   const [company, setCompany] = useState("");
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+
+  const [jobUrl, setJobUrl] = useState("");
   const [jobAd, setJobAd] = useState("");
+
   const [extraInfo, setExtraInfo] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [hiringManager, setHiringManager] = useState("");
+
   async function handleGenerate() {
-    if (!name || !company || !jobTitle || !jobAd || !resumeFile) {
-      alert("Please complete all required fields and upload a resume.");
+    if (!name || !company || !jobTitle || (!jobAd && !jobUrl) || !resumeFile) {
+      alert(
+        "Please provide a job posting URL OR paste the job advertisement and upload a resume."
+      );
       return;
     }
 
@@ -27,13 +35,20 @@ export default function CreatePage() {
       setLoading(true);
 
       const formData = new FormData();
+
       formData.append("name", name);
       formData.append("email", email);
       formData.append("phone", phone);
       formData.append("company", company);
       formData.append("companyWebsite", companyWebsite);
       formData.append("jobTitle", jobTitle);
+
+      formData.append("hiringManager", hiringManager);
+      formData.append("companyAddress", companyAddress);
+
+      formData.append("jobUrl", jobUrl);
       formData.append("jobAd", jobAd);
+
       formData.append("extraInfo", extraInfo);
       formData.append("resume", resumeFile);
 
@@ -45,7 +60,7 @@ export default function CreatePage() {
       if (!res.ok) {
         const text = await res.text();
         console.error(text);
-        throw new Error("API failed");
+        throw new Error(text);
       }
 
       const data = await res.json();
@@ -54,10 +69,14 @@ export default function CreatePage() {
         throw new Error("Cover letter was not returned.");
       }
 
-      // Save AI result
+      // Save AI cover letter
       sessionStorage.setItem("generatedCoverLetter", data.coverLetter);
 
-      // Save student data for Word template
+      // Use AI lookup if available, otherwise student input
+      const finalManager = data.hiringManager || hiringManager;
+      const finalAddress = data.companyAddress || companyAddress;
+
+      // Save for Word template
       sessionStorage.setItem(
         "coverLetterData",
         JSON.stringify({
@@ -66,14 +85,16 @@ export default function CreatePage() {
           phone,
           company,
           jobTitle,
+          hiringManager: finalManager,
+          companyAddress: finalAddress,
         })
       );
 
       router.push("/results");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("There was a problem generating the cover letter.");
+      alert(error?.message || "There was a problem generating the cover letter.");
     } finally {
       setLoading(false);
     }
@@ -87,9 +108,12 @@ export default function CreatePage() {
           Create Your Cover Letter
         </h1>
 
+        {/* STUDENT INFO */}
+
         <h2 className="text-xl font-semibold mb-3">Student Information</h2>
 
         <div className="grid gap-4 mb-6">
+
           <input
             className="border p-3 rounded"
             placeholder="Full Name *"
@@ -110,11 +134,15 @@ export default function CreatePage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
+
         </div>
+
+        {/* JOB INFO */}
 
         <h2 className="text-xl font-semibold mb-3">Job Information</h2>
 
         <div className="grid gap-4 mb-6">
+
           <input
             className="border p-3 rounded"
             placeholder="Company Name *"
@@ -135,12 +163,46 @@ export default function CreatePage() {
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
           />
+
+          <input
+            className="border p-3 rounded"
+            placeholder="Hiring Manager Name (optional)"
+            value={hiringManager}
+            onChange={(e) => setHiringManager(e.target.value)}
+          />
+
+          <input
+            className="border p-3 rounded"
+            placeholder="Company Address (optional)"
+            value={companyAddress}
+            onChange={(e) => setCompanyAddress(e.target.value)}
+          />
+
         </div>
+
+        {/* JOB URL */}
+
+        <h2 className="text-xl font-semibold mb-2">
+          Job Posting URL (Optional)
+        </h2>
+
+        <p className="text-sm text-gray-600 mb-3">
+          Paste a link to the job posting (Indeed, company website, LinkedIn, etc.)
+        </p>
+
+        <input
+          className="border p-3 rounded w-full mb-6"
+          placeholder="https://company.com/jobs/..."
+          value={jobUrl}
+          onChange={(e) => setJobUrl(e.target.value)}
+        />
+
+        {/* JOB AD TEXT */}
 
         <h2 className="text-xl font-semibold mb-2">Job Advertisement</h2>
 
         <p className="text-sm text-gray-600 mb-3">
-          Copy and paste the job posting from the company website, or type a short description of the position you are applying for.
+          OR copy and paste the job description below.
         </p>
 
         <textarea
@@ -149,6 +211,8 @@ export default function CreatePage() {
           value={jobAd}
           onChange={(e) => setJobAd(e.target.value)}
         />
+
+        {/* EXTRA INFO */}
 
         <h2 className="text-xl font-semibold mb-2">
           Additional Information (Optional)
@@ -165,6 +229,8 @@ export default function CreatePage() {
           onChange={(e) => setExtraInfo(e.target.value)}
         />
 
+        {/* RESUME UPLOAD */}
+
         <h2 className="text-xl font-semibold mb-3">Upload Your Resume</h2>
 
         <input
@@ -177,6 +243,8 @@ export default function CreatePage() {
           }}
           className="border p-3 rounded w-full mb-8"
         />
+
+        {/* BUTTON */}
 
         <button
           onClick={handleGenerate}

@@ -14,6 +14,8 @@ export async function POST(req: Request) {
   const email = body.email || "";
   const phone = body.phone || "";
   const company = body.company || "";
+  const hiringManager = body.hiringManager || "";
+  const companyAddress = body.companyAddress || "";
 
   const templatePath = path.join(
     process.cwd(),
@@ -35,30 +37,36 @@ export async function POST(req: Request) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  const greeting = hiringManager
+    ? `Dear ${hiringManager},`
+    : "Dear Hiring Manager,";
+
   doc.render({
     studentName: name,
     email: email,
     phone: phone,
     companyName: company,
+    companyAddress: companyAddress,
+    greeting: greeting,
     date: new Date().toLocaleDateString("en-US", {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-}),
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
     letterBody: cleanLetter,
   });
 
-const buffer = doc.getZip().generate({
-  type: "uint8array",
-});
+  const buffer = doc.getZip().generate({
+    type: "uint8array",
+  });
 
-const nodeBuffer = Buffer.from(buffer);
+  const nodeBuffer = Buffer.from(buffer);
 
-return new Response(nodeBuffer, {
-  headers: {
-    "Content-Type":
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "Content-Disposition": "attachment; filename=cover-letter.docx",
-  },
-});
+  return new Response(nodeBuffer, {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Disposition": "attachment; filename=cover-letter.docx",
+    },
+  });
 }

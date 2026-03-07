@@ -10,16 +10,16 @@ export default function ResultsPage() {
     setCoverLetter(saved);
   }, []);
 
-
-function formatPhone(phone: string) {
+  function formatPhone(phone: string) {
     const digits = phone.replace(/\D/g, "");
 
-  if (digits.length === 10) {
-    return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    if (digits.length === 10) {
+      return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    }
+
+    return phone;
   }
 
-  return phone;
-}
   async function downloadWord() {
 
     const stored = JSON.parse(
@@ -37,6 +37,8 @@ function formatPhone(phone: string) {
         email: stored.email || "",
         phone: formatPhone(stored.phone || ""),
         company: stored.company || "",
+        hiringManager: stored.hiringManager || "",
+        companyAddress: stored.companyAddress || ""
       }),
     });
 
