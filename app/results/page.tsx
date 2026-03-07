@@ -85,21 +85,24 @@ export default function ResultsPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-300 to-slate-500 flex justify-center p-8">
       <div className="bg-white max-w-5xl w-full rounded-xl shadow-lg p-10">
+
         <h1 className="text-3xl font-bold text-blue-900 mb-6">
           Your Cover Letter
         </h1>
 
         {/* EDITABLE COVER LETTER */}
 
-        <textarea
-          value={coverLetter}
-          onChange={(e) => setCoverLetter(e.target.value)}
-          className="border rounded p-6 w-full h-96 text-gray-800 leading-7 mb-8 resize-none"
-        />
+      <textarea
+  rows={20}
+  value={coverLetter}
+  onChange={(e) => setCoverLetter(e.target.value)}
+  className="border rounded-lg p-6 w-full text-gray-800 leading-7 mb-8 resize-y font-serif"
+/>
 
-        {/* AI Responsibility Notice */}
+        {/* AI RESPONSIBILITY MESSAGE */}
 
         <div className="bg-yellow-100 border border-yellow-400 rounded-lg p-5 mb-6">
+
           <p className="font-semibold mb-3 text-yellow-900">
             Important: Review Before Downloading
           </p>
@@ -107,12 +110,13 @@ export default function ResultsPage() {
           <p className="text-sm text-yellow-900 mb-4">
             This cover letter was generated using AI. It is your responsibility
             to carefully review, approve, and edit the content before using it.
-            Do not blindly accept this cover letter as the final version. You
-            should verify all information and make any necessary changes to
-            ensure accuracy and professionalism.
+            Do not blindly accept this cover letter as the final version.
+            Verify all information and make any necessary changes to ensure
+            accuracy and professionalism.
           </p>
 
           <label className="flex items-start gap-3 cursor-pointer">
+
             <input
               type="checkbox"
               checked={agreed}
@@ -124,17 +128,21 @@ export default function ResultsPage() {
               I understand that I must review and edit this cover letter before
               using it.
             </span>
+
           </label>
+
         </div>
 
         <h2 className="text-xl font-semibold text-blue-900 mb-6">
           Choose a Cover Letter Template
         </h2>
 
-        {/* TEMPLATE BUTTONS */}
+        {/* TEMPLATE SELECTOR */}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+
           {templates.map((template) => (
+
             <div
               key={template.name}
               onClick={() => agreed && downloadWord(template.name)}
@@ -145,18 +153,23 @@ export default function ResultsPage() {
                   : "opacity-50 cursor-not-allowed"
               }`}
             >
+
               <img
                 src={template.image}
                 alt={template.name}
-                className="w-full h-64 object-cover"
+                className="w-full h-72 object-contain bg-gray-50 p-4"
               />
 
               <div className="p-3 text-center font-medium text-gray-700">
                 {template.name}
               </div>
+
             </div>
+
           ))}
+
         </div>
+
       </div>
     </main>
   );
