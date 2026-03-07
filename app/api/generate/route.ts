@@ -13,18 +13,22 @@ async function extractResumeText(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
 
   // ---------- PDF ----------
-if (fileName.endsWith(".pdf")) {
+  if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
 
-const pdfModule = await import("pdf-parse");
-const pdfParse = (pdfModule as any).default || pdfModule;
+    // Use require for compatibility with Turbopack
+    const pdfParse = require("pdf-parse");
 
-const data = await pdfParse(new Uint8Array(bytes));
+    const data = await pdfParse(Buffer.from(bytes));
 
-  return data.text || "";
-}
+    return data.text || "";
+  }
 
   // ---------- DOCX ----------
-  if (fileName.endsWith(".docx")) {
+  if (
+    fileName.endsWith(".docx") ||
+    file.type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
     const buffer = Buffer.from(bytes);
     const result = await mammoth.extractRawText({ buffer });
     return result.value || "";
@@ -55,7 +59,14 @@ export async function POST(req: Request) {
     const extraInfo = String(formData.get("extraInfo") || "");
     const resume = formData.get("resume");
 
-    if (!name || !company || !jobTitle || !jobAd || !resume || !(resume instanceof File)) {
+    if (
+      !name ||
+      !company ||
+      !jobTitle ||
+      !jobAd ||
+      !resume ||
+      !(resume instanceof File)
+    ) {
       return NextResponse.json(
         { error: "Missing required fields." },
         { status: 400 }
@@ -136,7 +147,6 @@ Do NOT include:
       );
     }
 
-    // Clean formatting
     const cleanedLetter = coverLetter
       .replace(/\r\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
