@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 export default function Home() {
   const router = useRouter();
 
-  function start() {
+  function start() { 
     router.push("/create");
   }
 

@@ -95,7 +95,7 @@ formData.append("zip", zip);
 
       const finalManager = data.hiringManager || hiringManager;
       const finalAddress = data.companyAddress || companyAddress;
-
+ 
       sessionStorage.setItem(
         "coverLetterData",
         JSON.stringify({

@@ -92,7 +92,7 @@ export default function ResultsPage() {
 
         {/* EDITABLE COVER LETTER */}
 
-      <textarea
+      <textarea 
   rows={20}
   value={coverLetter}
   onChange={(e) => setCoverLetter(e.target.value)}
