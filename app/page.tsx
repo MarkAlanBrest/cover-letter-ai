@@ -22,7 +22,7 @@ export default function Home() {
         <p className="text-gray-700 mb-8">
           Create a professional cover letter tailored to your resume, job
           advertisement, and the company you are applying to. This tool helps
-          NCST students quickly generate a strong cover letter ready to submit
+          you quickly generate a strong cover letter ready to submit
           with job applications.
         </p>
 
