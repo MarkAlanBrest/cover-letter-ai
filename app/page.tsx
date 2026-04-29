@@ -15,10 +15,6 @@ export default function Home() {
      
       <div className="bg-white max-w-2xl w-full rounded-xl shadow-lg p-10 text-center">
 
-        <h1 className="text-4xl font-bold text-blue-900 mb-4">
-          New Castle School of Trades
-        </h1>
-
         <h2 className="text-2xl font-semibold mb-6">
           AI Cover Letter Generator
         </h2>
