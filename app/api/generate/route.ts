@@ -68,28 +68,6 @@ async function extractResumeText(file: File): Promise<string> {
   throw new ApiError("Unsupported resume format. Please upload PDF or DOCX.", 400);
 }
 
-async function extractJobFromUrl(url: string): Promise<string> {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!res.ok) return "";
-
-    const html = await res.text();
-    const $ = cheerio.load(html);
-    const text = $("body").text();
-
-    return text.replace(/\s+/g, " ").trim().slice(0, 4000);
-  } catch (error) {
-    console.error("Job URL fetch failed:", error);
-    return "";
-  }
-}
-
 async function extractKeySkills(jobText: string): Promise<string[]> {
   try {
     const response = await openai.responses.create({
@@ -213,7 +191,6 @@ export async function POST(req: Request) {
     const jobTitle = String(formData.get("jobTitle") || "");
 
     const jobAd = String(formData.get("jobAd") || "");
-    const jobUrl = normalizeUrl(String(formData.get("jobUrl") || ""));
 
     const hiringManagerInput = String(formData.get("hiringManager") || "");
     const companyAddressInput = String(formData.get("companyAddress") || "");
@@ -229,28 +206,15 @@ export async function POST(req: Request) {
       !name ||
       !company ||
       !jobTitle ||
-      (!jobAd && !jobUrl) ||
+      !jobAd ||
       !resume ||
       !(resume instanceof File)
     ) {
       return jsonError("Missing required fields.", 400);
     }
 
-    let finalJobAd = jobAd;
-
-    if (jobUrl) {
-      const extracted = await extractJobFromUrl(jobUrl);
-
-      if (extracted.length > 200) {
-        finalJobAd = extracted;
-      }
-    }
-
-    if (finalJobAd.trim().length < 50) {
-      return jsonError(
-        "Could not read enough job posting text. Please paste the job advertisement instead of using a link.",
-        400
-      );
+    if (jobAd.trim().length < 50) {
+      return jsonError("Job posting is too short. Please paste the full job advertisement.", 400);
     }
 
     const resumeText = await extractResumeText(resume);
@@ -261,7 +225,7 @@ export async function POST(req: Request) {
 
     const safeResume = resumeText.slice(0, 8000);
 
-    const keySkills = await extractKeySkills(finalJobAd);
+    const keySkills = await extractKeySkills(jobAd);
     const skillText = keySkills.join(", ");
 
     const companyContext = await extractCompanyContext(
@@ -309,7 +273,7 @@ ${companyContext}
 Job Title: ${jobTitle}
 
 Job Advertisement
-${finalJobAd}
+${jobAd}
 
 Resume Information
 ${safeResume}

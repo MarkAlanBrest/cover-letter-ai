@@ -14,14 +14,11 @@ export default function CreatePage() {
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [jobTitle, setJobTitle] = useState("");
 
-  const [jobUrl, setJobUrl] = useState("");
   const [jobAd, setJobAd] = useState("");
   const [address, setAddress] = useState("");
 const [city, setCity] = useState("");
 const [state, setState] = useState("");
 const [zip, setZip] = useState("");
-
-  const [jobInputType, setJobInputType] = useState<"url" | "text">("url");
 
   const [extraInfo, setExtraInfo] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -40,10 +37,7 @@ const [zip, setZip] = useState("");
     if (!company) newErrors.company = "Company name is required";
     if (!jobTitle) newErrors.jobTitle = "Job title is required";
 
-    if (jobInputType === "url" && !jobUrl)
-      newErrors.jobUrl = "Please provide the job posting URL";
-
-    if (jobInputType === "text" && !jobAd)
+    if (!jobAd)
       newErrors.jobAd = "Please paste the job advertisement";
 
     if (!resumeFile) newErrors.resume = "Please upload a resume";
@@ -77,7 +71,6 @@ formData.append("zip", zip);
       formData.append("hiringManager", hiringManager);
       formData.append("companyAddress", companyAddress);
 
-      formData.append("jobUrl", jobUrl);
       formData.append("jobAd", jobAd);
 
       formData.append("extraInfo", extraInfo);
@@ -252,81 +245,26 @@ formData.append("zip", zip);
 
         </div>
 
-        {/* JOB POSTING METHOD */}
+        {/* JOB POSTING */}
 
-        <h2 className="text-xl font-semibold mb-2">
-          Job Posting Information
-        </h2>
+        <h2 className="text-xl font-semibold mb-2">Job Posting</h2>
 
-        <p className="text-sm text-gray-600 mb-4">
-          Choose how you want to provide the job description.
-        </p>
+        <div className="mb-6">
 
-        <div className="flex gap-6 mb-6">
+          <textarea
+            className={`border p-3 rounded w-full h-56 ${
+              errors.jobAd ? "border-red-500 bg-red-50" : ""
+            }`}
+            placeholder="Paste the job advertisement here..."
+            value={jobAd}
+            onChange={(e) => setJobAd(e.target.value)}
+          />
 
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={jobInputType === "url"}
-              onChange={() => setJobInputType("url")}
-            />
-            Use Job Posting URL
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={jobInputType === "text"}
-              onChange={() => setJobInputType("text")}
-            />
-            Paste Job Advertisement
-          </label>
+          {errors.jobAd && (
+            <p className="text-red-600 text-sm mt-1">{errors.jobAd}</p>
+          )}
 
         </div>
-
-        {/* URL OPTION */}
-
-        {jobInputType === "url" && (
-
-          <div className="mb-6">
-
-            <input
-              className={inputStyle("jobUrl")}
-              placeholder="https://company.com/jobs/..."
-              value={jobUrl}
-              onChange={(e) => setJobUrl(e.target.value)}
-            />
-
-            {errors.jobUrl && (
-              <p className="text-red-600 text-sm mt-1">{errors.jobUrl}</p>
-            )}
-
-          </div>
-
-        )}
-
-        {/* TEXT OPTION */}
-
-        {jobInputType === "text" && (
-
-          <div className="mb-6">
-
-            <textarea
-              className={`border p-3 rounded w-full h-56 ${
-                errors.jobAd ? "border-red-500 bg-red-50" : ""
-              }`}
-              placeholder="Paste the job advertisement here..."
-              value={jobAd}
-              onChange={(e) => setJobAd(e.target.value)}
-            />
-
-            {errors.jobAd && (
-              <p className="text-red-600 text-sm mt-1">{errors.jobAd}</p>
-            )}
-
-          </div>
-
-        )}
 
         {/* EXTRA INFO */}
 
