@@ -213,10 +213,6 @@ export async function POST(req: Request) {
       return jsonError("Missing required fields.", 400);
     }
 
-    if (jobAd.trim().length < 50) {
-      return jsonError("Job posting is too short. Please paste the full job advertisement.", 400);
-    }
-
     const resumeText = await extractResumeText(resume);
 
     if (!resumeText.trim()) {
