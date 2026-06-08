@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -26,14 +27,14 @@ const [zip, setZip] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [companyAddress, setCompanyAddress] = useState("");
-  const [hiringManager, setHiringManager] = useState("");
+  const [companyAddress] = useState("");
+  const [hiringManager] = useState("");
 
-  const [errors, setErrors] = useState<any>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [resumeStatus, setResumeStatus] = useState("Upload Resume Here");
 
   function validate() {
-    const newErrors: any = {};
+    const newErrors: Record<string, string> = {};
 
     if (!name) newErrors.name = "Full name is required";
     if (!company) newErrors.company = "Company name is required";
@@ -87,9 +88,11 @@ formData.append("zip", zip);
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Server error");
-
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error generating cover letter.");
+      }
 
       sessionStorage.setItem("generatedCoverLetter", data.coverLetter);
 
@@ -115,27 +118,31 @@ formData.append("zip", zip);
 
       router.push("/results");
 
-    } catch (error: any) {
-      alert(error.message || "Error generating cover letter.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Error generating cover letter.";
+      alert(message);
     } finally {
       setLoading(false);
     }
   }
 
-  function handleResumeUpload(e: any) {
+  function handleResumeUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     if (!["pdf", "doc", "docx"].includes(ext || "")) {
-      setResumeStatus("❌ This is not a recognized resume format");
+      setResumeStatus("This is not a recognized resume format");
       setResumeFile(null);
       return;
     }
 
     setResumeFile(file);
-    setResumeStatus("✔ Successfully Uploaded Resume");
+    setResumeStatus("Successfully uploaded resume");
   }
 
   const inputStyle = (field: string) =>

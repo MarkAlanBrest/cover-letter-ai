@@ -3,12 +3,17 @@ import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
 
 /* -------------------------
    SAFE INPUT NORMALIZATION
@@ -105,110 +110,127 @@ async function fixFormatting(text: string) {
     });
 
     return response.choices[0].message.content || text;
-  } catch (err) {
-    console.error("AI formatting failed, using original text");
+  } catch (error) {
+    console.error("AI formatting failed, using original text:", error);
     return text;
   }
 }
 
 export async function POST(req: Request) {
+  try {
+    const body = await req.json();
 
-  const body = await req.json();
+    const allowedTemplates = new Set([
+      "TemplateA",
+      "TemplateB",
+      "TemplateC",
+      "TemplateD",
+    ]);
 
-  const template = body.template || "TemplateA";
+    const template = allowedTemplates.has(body.template)
+      ? body.template
+      : "TemplateA";
 
   /* -------------------------
      NORMALIZE USER INPUT
   --------------------------*/
 
-  const name = titleCase(body.name || "");
-  const email = normalizeEmail(body.email || "");
-  const phone = normalizePhone(body.phone || "");
+    const name = titleCase(body.name || "");
+    const email = normalizeEmail(body.email || "");
+    const phone = normalizePhone(body.phone || "");
 
-  const address = normalizeAddress(body.address || "");
-  const city = titleCase(body.city || "");
-  const state = normalizeState(body.state || "");
-  const zip = normalizeZip(body.zip || "");
+    const address = normalizeAddress(body.address || "");
+    const city = titleCase(body.city || "");
+    const state = normalizeState(body.state || "");
+    const zip = normalizeZip(body.zip || "");
 
-  const company = titleCase(body.company || "");
-  const hiringManager = titleCase(body.hiringManager || "");
-  const companyAddress = normalizeAddress(body.companyAddress || "");
+    const company = titleCase(body.company || "");
+    const hiringManager = titleCase(body.hiringManager || "");
+    const companyAddress = normalizeAddress(body.companyAddress || "");
 
-  const coverLetter = body.coverLetter || "";
+    const coverLetter = body.coverLetter || "";
 
-  const studentAddress = `${address}
+    if (!coverLetter.trim()) {
+      return jsonError("There is no cover letter text to download.", 400);
+    }
+
+    const studentAddress = `${address}
 ${city}, ${state} ${zip}`;
 
   /* -------------------------
      TEMPLATE LOADING
   --------------------------*/
 
-  const templatePath = path.join(
-    process.cwd(),
-    "templates",
-    `${template}.docx`
-  );
+    const templatePath = path.join(
+      process.cwd(),
+      "templates",
+      `${template}.docx`
+    );
 
-  if (!fs.existsSync(templatePath)) {
-    console.error("Template not found:", templatePath);
-    return new Response("Template not found", { status: 500 });
-  }
+    if (!fs.existsSync(templatePath)) {
+      console.error("Template not found:", templatePath);
+      return jsonError("Template not found.", 500);
+    }
 
-  const content = fs.readFileSync(templatePath, "binary");
+    const content = fs.readFileSync(templatePath, "binary");
 
-  const zipFile = new PizZip(content);
+    const zipFile = new PizZip(content);
 
-  const doc = new Docxtemplater(zipFile, {
-    paragraphLoop: true,
-    linebreaks: true,
-  });
+    const doc = new Docxtemplater(zipFile, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
 
   /* -------------------------
      LETTER CLEANUP
   --------------------------*/
 
-  const cleanLetter = coverLetter
-    .replace(/\r\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    const cleanLetter = coverLetter
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
 
-  const formattedLetter = await fixFormatting(cleanLetter);
+    const formattedLetter = await fixFormatting(cleanLetter);
 
-  const greeting = hiringManager
-    ? `Dear ${hiringManager},`
-    : "Dear Hiring Manager,";
+    const greeting = hiringManager
+      ? `Dear ${hiringManager},`
+      : "Dear Hiring Manager,";
 
   /* -------------------------
      TEMPLATE VARIABLES
   --------------------------*/
 
-  doc.render({
-    studentName: name,
-    studentAddress: studentAddress,
-    email: email,
-    phone: phone,
-    companyName: company,
-    companyAddress: companyAddress,
-    greeting: greeting,
-    date: new Date().toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }),
-    letterBody: formattedLetter,
-  });
+    doc.render({
+      studentName: name,
+      studentAddress: studentAddress,
+      email: email,
+      phone: phone,
+      companyName: company,
+      companyAddress: companyAddress,
+      greeting: greeting,
+      date: new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }),
+      letterBody: formattedLetter,
+    });
 
-  const buffer = doc.getZip().generate({
-    type: "uint8array",
-  });
+    const buffer = doc.getZip().generate({
+      type: "uint8array",
+    });
 
-  const nodeBuffer = Buffer.from(buffer);
+    const nodeBuffer = Buffer.from(buffer);
 
-  return new Response(nodeBuffer, {
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename=${template}.docx`,
-    },
-  });
+    return new Response(nodeBuffer, {
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename=${template}.docx`,
+      },
+    });
+  } catch (error) {
+    console.error("Download route error:", error);
+    return jsonError("Download failed. Please try again.", 500);
+  }
 }

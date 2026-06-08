@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import mammoth from "mammoth";
 import * as cheerio from "cheerio";
+import { PDFParse } from "pdf-parse";
 
 export const runtime = "nodejs";
 
@@ -9,14 +10,48 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+function normalizeUrl(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 async function extractResumeText(file: File): Promise<string> {
   const bytes = await file.arrayBuffer();
   const fileName = file.name.toLowerCase();
 
   if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
-    const pdfParse = require("pdf-parse");
-    const data = await pdfParse(Buffer.from(bytes));
-    return data.text || "";
+    const parser = new PDFParse({ data: Buffer.from(bytes) });
+
+    try {
+      const data = await parser.getText();
+      return data.text || "";
+    } finally {
+      await parser.destroy();
+    }
   }
 
   if (
@@ -30,12 +65,13 @@ async function extractResumeText(file: File): Promise<string> {
   }
 
   if (fileName.endsWith(".doc")) {
-    throw new Error(
-      "DOC files are not supported. Please upload a PDF or DOCX file."
+    throw new ApiError(
+      "DOC files are not supported. Please upload a PDF or DOCX file.",
+      400
     );
   }
 
-  throw new Error("Unsupported resume format. Please upload PDF or DOCX.");
+  throw new ApiError("Unsupported resume format. Please upload PDF or DOCX.", 400);
 }
 
 async function extractJobFromUrl(url: string): Promise<string> {
@@ -44,7 +80,10 @@ async function extractJobFromUrl(url: string): Promise<string> {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
       },
+      signal: AbortSignal.timeout(8000),
     });
+
+    if (!res.ok) return "";
 
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -58,9 +97,10 @@ async function extractJobFromUrl(url: string): Promise<string> {
 }
 
 async function extractKeySkills(jobText: string): Promise<string[]> {
-  const response = await openai.responses.create({
-    model: "gpt-5-mini",
-    input: `
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: `
 Extract the 8 most important skills or qualifications from this job posting.
 
 Return them as a simple comma separated list.
@@ -68,14 +108,18 @@ Return them as a simple comma separated list.
 Job Posting:
 ${jobText}
 `,
-  });
+    });
 
-  const skills = response.output_text
-    ?.split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+    const skills = response.output_text
+      ?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-  return skills || [];
+    return skills || [];
+  } catch (error) {
+    console.error("Skill extraction failed:", error);
+    return [];
+  }
 }
 
 async function lookupCompanyInfo(
@@ -83,10 +127,10 @@ async function lookupCompanyInfo(
   website: string,
   jobTitle: string
 ) {
-
-  const response = await openai.responses.create({
-    model: "gpt-5-mini",
-    input: `
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: `
 Find the hiring manager and company address if possible.
 
 Company: ${company}
@@ -104,12 +148,12 @@ Return JSON ONLY:
  "companyAddress": ""
 }
 `,
-  });
+    });
 
-  try {
     const text = response.output_text || "";
     return JSON.parse(text);
-  } catch {
+  } catch (error) {
+    console.error("Company lookup failed:", error);
     return {
       hiringManager: "",
       companyAddress: ""
@@ -127,7 +171,10 @@ async function extractCompanyContext(company: string, website: string) {
       headers: {
         "User-Agent": "Mozilla/5.0",
       },
+      signal: AbortSignal.timeout(8000),
     });
+
+    if (!res.ok) return "";
 
     const html = await res.text();
 
@@ -158,6 +205,9 @@ Return one sentence only.
 
 export async function POST(req: Request) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return jsonError("The AI service is not configured.", 500);
+    }
 
     const formData = await req.formData();
 
@@ -165,11 +215,11 @@ export async function POST(req: Request) {
     const email = String(formData.get("email") || "");
     const phone = String(formData.get("phone") || "");
     const company = String(formData.get("company") || "");
-    const companyWebsite = String(formData.get("companyWebsite") || "");
+    const companyWebsite = normalizeUrl(String(formData.get("companyWebsite") || ""));
     const jobTitle = String(formData.get("jobTitle") || "");
 
     const jobAd = String(formData.get("jobAd") || "");
-    const jobUrl = String(formData.get("jobUrl") || "");
+    const jobUrl = normalizeUrl(String(formData.get("jobUrl") || ""));
 
     const hiringManagerInput = String(formData.get("hiringManager") || "");
     const companyAddressInput = String(formData.get("companyAddress") || "");
@@ -178,10 +228,7 @@ export async function POST(req: Request) {
     const resume = formData.get("resume");
 
     if (resume instanceof File && resume.size > 5_000_000) {
-      return NextResponse.json(
-        { error: "Resume file must be under 5MB." },
-        { status: 400 }
-      );
+      return jsonError("Resume file must be under 5MB.", 400);
     }
 
     if (
@@ -192,15 +239,12 @@ export async function POST(req: Request) {
       !resume ||
       !(resume instanceof File)
     ) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 }
-      );
+      return jsonError("Missing required fields.", 400);
     }
 
     let finalJobAd = jobAd;
 
-    if (jobUrl && /^https?:\/\//i.test(jobUrl)) {
+    if (jobUrl) {
       const extracted = await extractJobFromUrl(jobUrl);
 
       if (extracted.length > 200) {
@@ -208,13 +252,17 @@ export async function POST(req: Request) {
       }
     }
 
+    if (finalJobAd.trim().length < 50) {
+      return jsonError(
+        "Could not read enough job posting text. Please paste the job advertisement instead of using a link.",
+        400
+      );
+    }
+
     const resumeText = await extractResumeText(resume);
 
     if (!resumeText.trim()) {
-      return NextResponse.json(
-        { error: "Could not read any text from the uploaded resume." },
-        { status: 400 }
-      );
+      return jsonError("Could not read any text from the uploaded resume.", 400);
     }
 
     const safeResume = resumeText.slice(0, 8000);
@@ -312,10 +360,7 @@ Do NOT include:
     const coverLetter = response.output_text?.trim();
 
     if (!coverLetter) {
-      return NextResponse.json(
-        { error: "The AI did not return a cover letter." },
-        { status: 500 }
-      );
+      return jsonError("The AI did not return a cover letter. Please try again.", 502);
     }
 
     const cleanedLetter = coverLetter
@@ -336,7 +381,8 @@ Do NOT include:
 
     const message =
       error instanceof Error ? error.message : "Unknown server error.";
+    const status = error instanceof ApiError ? error.status : 500;
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, status);
   }
 }

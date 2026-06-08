@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export default function ResultsPage() {
-  const [coverLetter, setCoverLetter] = useState("");
+  const [coverLetter, setCoverLetter] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("generatedCoverLetter") || "";
+  });
   const [agreed, setAgreed] = useState(false);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("generatedCoverLetter") || "";
-    setCoverLetter(saved);
-  }, []);
 
   function formatPhone(phone: string) {
     const digits = phone.replace(/\D/g, "");
@@ -55,9 +53,8 @@ export default function ResultsPage() {
     });
 
     if (!res.ok) {
-      const text = await res.text();
-      console.error(text);
-      alert("Download failed");
+      const data = await res.json().catch(() => null);
+      alert(data?.error || "Download failed. Please try again.");
       return;
     }
 
