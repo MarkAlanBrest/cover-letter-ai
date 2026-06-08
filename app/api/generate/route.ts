@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import mammoth from "mammoth";
 import * as cheerio from "cheerio";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
 
@@ -44,14 +44,8 @@ async function extractResumeText(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
 
   if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
-    const parser = new PDFParse({ data: Buffer.from(bytes) });
-
-    try {
-      const data = await parser.getText();
-      return data.text || "";
-    } finally {
-      await parser.destroy();
-    }
+    const data = await pdfParse(Buffer.from(bytes));
+    return data.text || "";
   }
 
   if (
