@@ -30,6 +30,17 @@ const [zip, setZip] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [resumeStatus, setResumeStatus] = useState("Upload Resume Here");
 
+  async function readErrorMessage(res: Response, fallback: string) {
+    const contentType = res.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      const data = await res.json().catch(() => null);
+      return data?.error || fallback;
+    }
+
+    return fallback;
+  }
+
   function validate() {
     const newErrors: Record<string, string> = {};
 
@@ -81,11 +92,15 @@ formData.append("zip", zip);
         body: formData,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Error generating cover letter.");
+        const message = await readErrorMessage(
+          res,
+          "The server had trouble generating the cover letter. Please try again."
+        );
+        throw new Error(message);
       }
+
+      const data = await res.json();
 
       sessionStorage.setItem("generatedCoverLetter", data.coverLetter);
 

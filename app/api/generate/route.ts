@@ -5,9 +5,12 @@ import * as cheerio from "cheerio";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 1,
+  timeout: 25_000,
 });
 
 class ApiError extends Error {
@@ -21,6 +24,21 @@ class ApiError extends Error {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function truncateText(text: string, maxLength: number) {
+  return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function parseJsonObject(text: string) {
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeUrl(url: string) {
@@ -44,8 +62,16 @@ async function extractResumeText(file: File): Promise<string> {
   const fileName = file.name.toLowerCase();
 
   if (fileName.endsWith(".pdf") || file.type === "application/pdf") {
-    const data = await pdfParse(Buffer.from(bytes));
-    return data.text || "";
+    try {
+      const data = await pdfParse(Buffer.from(bytes));
+      return data.text || "";
+    } catch (error) {
+      console.error("PDF parsing failed:", error);
+      throw new ApiError(
+        "We could not read that PDF. Please try exporting it again, or upload a DOCX version.",
+        400
+      );
+    }
   }
 
   if (
@@ -53,9 +79,17 @@ async function extractResumeText(file: File): Promise<string> {
     file.type ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    const buffer = Buffer.from(bytes);
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value || "";
+    try {
+      const buffer = Buffer.from(bytes);
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value || "";
+    } catch (error) {
+      console.error("DOCX parsing failed:", error);
+      throw new ApiError(
+        "We could not read that DOCX file. Please try saving it again or uploading a PDF.",
+        400
+      );
+    }
   }
 
   if (fileName.endsWith(".doc")) {
@@ -122,8 +156,13 @@ Return JSON ONLY:
 `,
     });
 
-    const text = response.output_text || "";
-    return JSON.parse(text);
+    const parsed = parseJsonObject(response.output_text || "");
+    return {
+      hiringManager:
+        typeof parsed?.hiringManager === "string" ? parsed.hiringManager : "",
+      companyAddress:
+        typeof parsed?.companyAddress === "string" ? parsed.companyAddress : "",
+    };
   } catch (error) {
     console.error("Company lookup failed:", error);
     return {
@@ -148,7 +187,7 @@ async function extractCompanyContext(company: string, website: string) {
 
     if (!res.ok) return "";
 
-    const html = await res.text();
+    const html = truncateText(await res.text(), 100_000);
 
     const $ = cheerio.load(html);
 
@@ -190,12 +229,12 @@ export async function POST(req: Request) {
     const companyWebsite = normalizeUrl(String(formData.get("companyWebsite") || ""));
     const jobTitle = String(formData.get("jobTitle") || "");
 
-    const jobAd = String(formData.get("jobAd") || "");
+    const jobAd = truncateText(String(formData.get("jobAd") || ""), 12_000);
 
     const hiringManagerInput = String(formData.get("hiringManager") || "");
     const companyAddressInput = String(formData.get("companyAddress") || "");
 
-    const extraInfo = String(formData.get("extraInfo") || "");
+    const extraInfo = truncateText(String(formData.get("extraInfo") || ""), 3_000);
     const resume = formData.get("resume");
 
     if (resume instanceof File && resume.size > 5_000_000) {
@@ -221,32 +260,27 @@ export async function POST(req: Request) {
 
     const safeResume = resumeText.slice(0, 8000);
 
-    const keySkills = await extractKeySkills(jobAd);
+    const [keySkills, companyContext, lookup] = await Promise.all([
+      extractKeySkills(jobAd),
+      extractCompanyContext(company, companyWebsite),
+      !hiringManagerInput || !companyAddressInput
+        ? lookupCompanyInfo(company, companyWebsite, jobTitle)
+        : Promise.resolve({
+            hiringManager: "",
+            companyAddress: "",
+          }),
+    ]);
     const skillText = keySkills.join(", ");
-
-    const companyContext = await extractCompanyContext(
-      company,
-      companyWebsite
-    );
 
     let hiringManager = hiringManagerInput;
     let companyAddress = companyAddressInput;
 
-    if (!hiringManager || !companyAddress) {
+    if (!hiringManager && lookup.hiringManager) {
+      hiringManager = lookup.hiringManager;
+    }
 
-      const lookup = await lookupCompanyInfo(
-        company,
-        companyWebsite,
-        jobTitle
-      );
-
-      if (!hiringManager && lookup.hiringManager) {
-        hiringManager = lookup.hiringManager;
-      }
-
-      if (!companyAddress && lookup.companyAddress) {
-        companyAddress = lookup.companyAddress;
-      }
+    if (!companyAddress && lookup.companyAddress) {
+      companyAddress = lookup.companyAddress;
     }
 
     const prompt = `
@@ -333,9 +367,11 @@ Do NOT include:
 
     console.error("Generate route error:", error);
 
-    const message =
-      error instanceof Error ? error.message : "Unknown server error.";
     const status = error instanceof ApiError ? error.status : 500;
+    const message =
+      error instanceof ApiError
+        ? error.message
+        : "Something went wrong while generating the cover letter. Please try again in a moment.";
 
     return jsonError(message, status);
   }

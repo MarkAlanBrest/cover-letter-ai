@@ -6,9 +6,12 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 1,
+  timeout: 15_000,
 });
 
 function jsonError(message: string, status: number) {
